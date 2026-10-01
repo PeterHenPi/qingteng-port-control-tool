@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>青藤主机端口封禁控制工具</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">青藤万相外部 API v3.4.1.66</p>
+          <h1>主机端口 / IP 封禁控制</h1>
+          <p class="subtle">基于 API 手册生成微隔离和黑名单策略请求，支持认证签名、精细端口/IP 范围、有效期预览和一键调用。</p>
+        </div>
+        <div class="status-card">
+          <span id="authStatus" class="status-pill">未认证</span>
+          <strong id="expirySummary">未设置有效期</strong>
+          <small>封禁时长会写入备注；青藤黑名单接口本身未提供时长字段。</small>
+        </div>
+      </section>
+
+      <section class="layout">
+        <aside class="panel">
+          <div class="panel-head">
+            <h2>连接与认证</h2>
+          </div>
+          <label>
+            Console 地址
+            <input id="baseUrl" value="http://127.0.0.1:80" placeholder="http://127.0.0.1:80" />
+          </label>
+          <label class="inline-check">
+            <input id="useProxy" type="checkbox" checked />
+            使用本地代理请求 Console
+          </label>
+          <label>
+            用户名
+            <input id="username" placeholder="admin@sec.com" autocomplete="username" />
+          </label>
+          <label>
+            密码
+            <input id="password" type="password" autocomplete="current-password" placeholder="Console 密码" />
+          </label>
+          <button id="loginBtn" class="primary">登录并获取签名参数</button>
+
+          <div class="kv">
+            <div><span>comId</span><code id="comIdView">-</code></div>
+            <div><span>JWT</span><code id="jwtView">-</code></div>
+            <div><span>signKey</span><code id="signKeyView">-</code></div>
+          </div>
+
+          <div class="doc-box">
+            <h3>API 依据</h3>
+            <p><code>POST /external/api/ms-srv/api/segmentation/create</code></p>
+            <p><code>POST /external/api/ms-srv/api/segmentation/edit</code></p>
+            <p><code>DELETE /external/api/ms-srv/api/segmentation/del</code></p>
+            <p><code>POST /external/api/ms-srv/api/black-strategy/create</code></p>
+            <p><code>POST /external/api/detect/brutecrack/{linux,win}/block</code></p>
+          </div>
+        </aside>
+
+        <section class="main-column">
+          <section class="panel">
+            <div class="panel-head split">
+              <h2>控制策略</h2>
+              <div class="tabs" role="tablist">
+                <button class="tab active" data-mode="segmentation">主机隔离</button>
+                <button class="tab" data-mode="blacklist">黑名单策略</button>
+                <button class="tab" data-mode="brutecrack">暴力破解封停</button>
+              </div>
+            </div>
+
+            <div class="grid two">
+              <label>
+                主机 Agent ID
+                <textarea id="agentIds" rows="4" placeholder="多个主机用逗号、换行或空格分隔"></textarea>
+                <button id="resolveHosts" type="button">按 IP/主机名解析 Agent ID</button>
+              </label>
+              <label>
+                端口
+                <textarea id="ports" rows="4" placeholder="22, 80, 443, 8000-8100；全部端口填 all">22,80,443</textarea>
+              </label>
+              <label>
+                IP / IP 段
+                <textarea id="ips" rows="5" placeholder="192.168.1.10&#10;10.0.0.1-10.0.0.20&#10;172.16.0.0/24"></textarea>
+              </label>
+              <div class="grid nested">
+                <label>
+                  隔离方向
+                  <select id="direction">
+                    <option value="in">入站</option>
+                    <option value="out" selected>出站</option>
+                    <option value="all">全部</option>
+                  </select>
+                </label>
+                <label>
+                  协议
+                  <select id="proto">
+                    <option value="TCP">TCP</option>
+                    <option value="UDP">UDP</option>
+                    <option value="TCP,UDP">TCP + UDP</option>
+                  </select>
+                </label>
+                <label>
+                  封禁时长
+                  <input id="durationValue" type="number" min="1" max="365" value="2" />
+                </label>
+                <label>
+                  单位
+                  <select id="durationUnit">
+                    <option value="minute">分钟</option>
+                    <option value="hour" selected>小时</option>
+                    <option value="day">天</option>
+                  </select>
+                </label>
+              </div>
+              <label class="blacklist-only">
+                策略名称
+                <input id="strategyName" placeholder="例如：临时封禁-SSH-外部IP" />
+              </label>
+              <label class="blacklist-only">
+                黑名单方向
+                <select id="blacklistDirection">
+                  <option value="src">访问者 IP -> 主机</option>
+                  <option value="dst">主机 -> 被访问 IP</option>
+                </select>
+              </label>
+              <label class="brutecrack-only hidden">
+                暴力破解记录 ID
+                <input id="brutecrackId" placeholder="查询结果接口返回的 id 字段" />
+              </label>
+              <label>
+                备注
+                <input id="remark" placeholder="变更单、原因或责任人" />
+              </label>
+            </div>
+
+            <div class="summary">
+              <div><span>主机</span><strong id="hostCount">0</strong></div>
+              <div><span>IP 条目</span><strong id="ipCount">0</strong></div>
+              <div><span>端口</span><strong id="portCount">0</strong></div>
+              <div><span>到期时间</span><strong id="expiryText">-</strong></div>
+            </div>
+
+            <div class="actions">
+              <button id="sendPrimary" class="primary">创建隔离</button>
+              <button id="sendEdit">修改隔离</button>
+              <button id="sendRelease" class="warning">解除隔离</button>
+              <button id="copyBody">复制请求体</button>
+            </div>
+          </section>
+
+          <section class="grid two output-grid">
+            <div class="panel">
+              <div class="panel-head split">
+                <h2>请求预览</h2>
+                <span id="methodBadge" class="badge">POST</span>
+              </div>
+              <code id="endpoint" class="endpoint"></code>
+              <pre id="requestPreview"></pre>
+            </div>
+            <div class="panel">
+              <div class="panel-head split">
+                <h2>执行结果</h2>
+                <button id="clearResult" class="ghost">清空</button>
+              </div>
+              <pre id="resultBox">尚未执行请求。</pre>
+            </div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
